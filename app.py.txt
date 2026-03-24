@@ -1,0 +1,92 @@
+import streamlit as st
+from docxtpl import DocxTemplate, InlineImage
+from docx.shared import Mm
+import io
+
+st.set_page_config(page_title="Generador INGECO", layout="centered")
+
+st.title("🏗️ Generador de Informe Semanal")
+st.info("Sube las fotos y completa los datos. La app generará el Word manteniendo tu formato original.")
+
+# 1. CARGA DE LA PLANTILLA
+# Intentamos cargar la plantilla que tienes en la carpeta
+try:
+    template_path = "plantilla.docx"
+    doc = DocxTemplate(template_path)
+except:
+    st.error("❌ No se encontró el archivo 'plantilla.docx' en la carpeta.")
+    st.stop()
+
+# 2. FORMULARIO DE DATOS
+with st.form("datos_informe"):
+    st.subheader("📝 Información del Periodo")
+    col1, col2 = st.columns(2)
+    with col1:
+        periodo = st.text_input("Periodo (Ej: del 2 al 8 de marzo)", "del 2 al 8 de marzo de 2026")
+        unidad = st.text_input("Unidad de Monitoreo", "D135")
+    with col2:
+        ficha = st.text_input("Número de Ficha", "8-ING")
+        fecha_inicio = st.text_input("Fecha de Inicio", "02/03/2026")
+
+    st.subheader("📏 Medidas de Excavación")
+    c1, c2, c3 = st.columns(3)
+    largo = c1.text_input("Largo (m)", "3.5")
+    ancho = c2.text_input("Ancho (m)", "2.1")
+    prof_max = c3.text_input("Prof. Máxima (m)", "1.8")
+
+    st.subheader("🔍 Hallazgos y Estratigrafía")
+    descripcion_ue = st.text_area("Descripción de las UE", placeholder="Escribe aquí el texto de las unidades estratigráficas...")
+
+    st.subheader("📸 Registro Fotográfico")
+    f_mapa = st.file_uploader("Mapa de Ubicación", type=['jpg', 'png'])
+    
+    # Creamos espacio para 4 fotos de excavación (puedes añadir más)
+    f_exca_1 = st.file_uploader("Foto de Excavación 1", type=['jpg', 'png'])
+    f_exca_2 = st.file_uploader("Foto de Excavación 2", type=['jpg', 'png'])
+    
+    f_perfil = st.file_uploader("Perfil Estratigráfico", type=['jpg', 'png'])
+    f_harris = st.file_uploader("Matriz de Harris", type=['jpg', 'png'])
+
+    btn_generar = st.form_submit_button("🚀 GENERAR INFORME")
+
+# 3. PROCESAMIENTO
+if btn_generar:
+    # Diccionario con los textos
+    context = {
+        'periodo': periodo,
+        'unidad': unidad,
+        'ficha': ficha,
+        'fecha_inicio': fecha_inicio,
+        'largo': largo,
+        'ancho': ancho,
+        'prof_max': prof_max,
+        'descripcion_ue': descripcion_ue
+    }
+
+    # Función para insertar imagen si se subió
+    def agregar_img(campo, archivo, ancho_mm):
+        if archivo:
+            context[campo] = InlineImage(doc, archivo, width=Mm(ancho_mm))
+
+    # Procesar imágenes
+    agregar_img('foto_mapa', f_mapa, 150)
+    agregar_img('foto_excavacion_1', f_exca_1, 100)
+    agregar_img('foto_excavacion_2', f_exca_2, 100)
+    agregar_img('foto_perfil', f_perfil, 130)
+    agregar_img('foto_harris', f_harris, 100)
+
+    # Fusionar con el Word
+    doc.render(context)
+    
+    # Guardar en memoria para descargar
+    target_stream = io.BytesIO()
+    doc.save(target_stream)
+    target_stream.seek(0)
+
+    st.success("✅ ¡Informe procesado con éxito!")
+    st.download_button(
+        label="📥 Descargar Informe Completo",
+        data=target_stream,
+        file_name=f"Informe_{unidad}_{periodo}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
